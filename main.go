@@ -12,6 +12,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/gin-contrib/cors"
@@ -64,7 +65,7 @@ func computeSampleSize(videos []Video) int {
 		return int(populationSize)
 	}
 	// wanted accuracy of 98%
-	var marginError float64 = 0.02
+	var marginError float64 = 0.01
 
 	sampleSize := populationSize / (1 + int(float64(populationSize)*marginError*marginError))
 	return int(sampleSize)
@@ -275,37 +276,41 @@ func main() {
 
 		fmt.Println(missingLinks, missingLinksSample)
 
-		// stores "items" in json
 		var listData Data
 		var totalDurationSample int64 = 0
 		var totalDuration int64 = 0
-		// missingLinks := sampleSize - len(urlsAPI)
+
+		var wg sync.WaitGroup
+		wg.Add(len(urlsAPI))
 
 		for i, url := range urlsAPI {
-			resp, err := http.Get(url)
 
-			if err != nil {
-				fmt.Println(err)
-				panic(err.Error())
-			}
+			go func(i int, url string) {
+				defer wg.Done()
+				resp, err := http.Get(url)
 
-			data, _ := ioutil.ReadAll(resp.Body)
+				if err != nil {
+					fmt.Println(err)
+					panic(err.Error())
+				}
 
-			// see the json response in the terminal
-			// fmt.Println(string(data))
+				data, _ := ioutil.ReadAll(resp.Body)
+				err = json.Unmarshal(data, &listData)
 
-			err = json.Unmarshal(data, &listData)
+				// get feedback on the request
+				fmt.Println("request :", i)
 
-			// get feedback on the request
-			fmt.Println("request :", i)
+				if err != nil {
+					fmt.Println("error :", err)
+					panic(err.Error())
+				}
 
-			if err != nil {
-				fmt.Println("error :", err)
-				panic(err.Error())
-			}
+				totalDurationSample += updateDurationSample(listData)
 
-			totalDurationSample += updateDurationSample(listData)
+			}(i, url)
 		}
+
+		wg.Wait()
 
 		// compute the total duration for all the videos from the total given by the sample
 		totalDuration = getTotalDuration(totalDurationSample, sampleSize, population, missingLinksSample)
