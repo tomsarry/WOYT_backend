@@ -67,7 +67,7 @@ func computeSampleSize(videos []Video) int {
 		return int(populationSize)
 	}
 	// wanted accuracy of 98%
-	var marginError float64 = 0.05
+	var marginError float64 = 0.03
 
 	sampleSize := populationSize / (1 + int(float64(populationSize)*marginError*marginError))
 	return int(sampleSize)
@@ -289,6 +289,8 @@ func main() {
 
 		urlsAPI := getUrlsAPI(ids)
 
+		fmt.Printf("making %d  API requests, checking %d videos", len(urlsAPI), sampleSize)
+
 		// if didn't find any video id, send an error to frontend, stop the program
 		if len(urlsAPI) == 0 {
 			fmt.Println("Error with file, check that it is your watched history and not searched history")
@@ -329,15 +331,17 @@ func main() {
 					panic(err.Error())
 				}
 
-				fmt.Println(listData)
+				// see each video duration in ISO8601 before parsing
+				// fmt.Println(listData)
 
 				comuptedDurationSample, computedOutOfRange := updateDurationSample(listData)
 
 				outOfRange += computedOutOfRange
 				totalDurationSample += comuptedDurationSample
 
-				fmt.Println("duration of sample is : ", totalDurationSample)
-				fmt.Println("number of videos out of range : ", outOfRange)
+				//testing
+				// fmt.Println("duration of sample is : ", totalDurationSample)
+				// fmt.Println("number of videos out of range : ", outOfRange)
 
 			}(i, url)
 		}
