@@ -11,8 +11,8 @@ import (
 	"github.com/tomsarry/woyt_backend/models"
 )
 
-// ShuffleUrls is the Fisher-Yates method to shuffle array of strings
-func ShuffleUrls(urls []string) {
+// shuffleUrls is the Fisher-Yates method to shuffle array of strings
+func shuffleUrls(urls []string) {
 	N := len(urls)
 	for i := 0; i < N; i++ {
 		// choose index uniformly in [i, N-1]
@@ -37,13 +37,13 @@ func getUrlsShuffled(videos []models.Video) ([]string, int) {
 		}
 
 	}
-	ShuffleUrls(urls)
+	shuffleUrls(urls)
 
 	return urls, missingLinks
 }
 
-// ParseInt64 returns the int64 representation of a given string
-func ParseInt64(value string) int64 {
+// parseInt64 returns the int64 representation of a given string
+func parseInt64(value string) int64 {
 	if len(value) == 0 {
 		return 0
 	}
@@ -54,17 +54,17 @@ func ParseInt64(value string) int64 {
 	return int64(parsed)
 }
 
-// ParseDuration converts an ISO8601 string to an int
-func ParseDuration(str string) (int64, int) {
+// parseDuration converts an ISO8601 string to an int
+func parseDuration(str string) (int64, int) {
 	durationRegex := regexp.MustCompile(`P(?P<years>\d+Y)?(?P<months>\d+M)?(?P<days>\d+D)?T?(?P<hours>\d+H)?(?P<minutes>\d+M)?(?P<seconds>\d+S)?`)
 	matches := durationRegex.FindStringSubmatch(str)
 
-	years := ParseInt64(matches[1])
-	months := ParseInt64(matches[2])
-	days := ParseInt64(matches[3])
-	hours := ParseInt64(matches[4])
-	minutes := ParseInt64(matches[5])
-	seconds := ParseInt64(matches[6])
+	years := parseInt64(matches[1])
+	months := parseInt64(matches[2])
+	days := parseInt64(matches[3])
+	hours := parseInt64(matches[4])
+	minutes := parseInt64(matches[5])
+	seconds := parseInt64(matches[6])
 
 	videoDuration := years*24*365*60*60 + months*30*24*60*60 + days*24*60*60 + hours*60*60 + minutes*60 + seconds
 
@@ -82,7 +82,7 @@ func UpdateDurationSample(durations models.Data) (int64, int) {
 	var outOfRange int = 0
 
 	for _, duration := range durations.Items {
-		computedDuration, comuptedOutOfRange := ParseDuration(duration.ContentDetails.Duration)
+		computedDuration, comuptedOutOfRange := parseDuration(duration.ContentDetails.Duration)
 
 		totalDuration += computedDuration
 		outOfRange += comuptedOutOfRange
@@ -99,9 +99,9 @@ func GetTotalDuration(sampleDuration int64, sampleSize int, totalSize int, missi
 	return avgTimeSample * int64(totalSize)
 }
 
-// ComputeSampleSize will compute the amount of videos that should be requested to the
+// GetSampleSize will compute the amount of videos that should be requested to the
 // YT API to have an accurate estimation of the total, given the total amount of videos
-func ComputeSampleSize(numVideo int) int {
+func GetSampleSize(numVideo int) int {
 
 	if numVideo < 400 {
 		return numVideo
@@ -118,7 +118,7 @@ func ComputeSampleSize(numVideo int) int {
 // GetIDSample returns a sample of videos
 func GetIDSample(videos []models.Video) ([]string, int) {
 
-	sampleSize := ComputeSampleSize(len(videos))
+	sampleSize := GetSampleSize(len(videos))
 
 	urls, missingLinks := getUrlsShuffled(videos)
 	var ids []string
