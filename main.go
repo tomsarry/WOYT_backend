@@ -34,6 +34,8 @@ type RequestInfo struct {
 	MissingLinks         int
 	MissingLinksSample   int
 	TotalDurationSeconds int64
+	TotalDurationSample  int64
+	AvgDuration          float64
 }
 
 // Data holds the response of the Youtube API
@@ -65,7 +67,7 @@ func computeSampleSize(videos []Video) int {
 		return int(populationSize)
 	}
 	// wanted accuracy of 98%
-	var marginError float64 = 0.01
+	var marginError float64 = 0.05
 
 	sampleSize := populationSize / (1 + int(float64(populationSize)*marginError*marginError))
 	return int(sampleSize)
@@ -90,7 +92,6 @@ func getUrlsShuffled(videos []Video) ([]string, int) {
 	for _, video := range videos {
 		if video.TitleURL == "" {
 			missingLinks++
-			// fmt.Println("Missing link is : "+video.TitleURL, video.Time)
 			continue
 		} else {
 			urls = append(urls, video.TitleURL)
@@ -103,6 +104,7 @@ func getUrlsShuffled(videos []Video) ([]string, int) {
 }
 
 func getIDSample(sampleSize int, videos []Video) ([]string, int) {
+
 	urls, missingLinks := getUrlsShuffled(videos)
 	var ids []string
 	ctn := 0
@@ -114,7 +116,6 @@ func getIDSample(sampleSize int, videos []Video) ([]string, int) {
 
 		if err != nil {
 			continue
-			// panic(err.Error())
 		}
 
 		m, err := url.ParseQuery(u.RawQuery)
@@ -129,11 +130,18 @@ func getIDSample(sampleSize int, videos []Video) ([]string, int) {
 		ids = append(ids, m["v"][0])
 		ctn++
 	}
+
 	return ids, missingLinks
 }
 
 // creates the URLs to make the API requests
 func getUrlsAPI(ids []string) []string {
+
+	// if didn't find any ids, send error
+	if len(ids) == 0 {
+		var empty []string
+		return empty
+	}
 
 	numRequest := (len(ids) / 50) + 1
 	var apiUrls []string
@@ -154,7 +162,7 @@ func getUrlsAPI(ids []string) []string {
 }
 
 // converts an ISO8601 string to an int
-func parseDuration(str string) int64 {
+func parseDuration(str string) (int64, int) {
 	durationRegex := regexp.MustCompile(`P(?P<years>\d+Y)?(?P<months>\d+M)?(?P<days>\d+D)?T?(?P<hours>\d+H)?(?P<minutes>\d+M)?(?P<seconds>\d+S)?`)
 	matches := durationRegex.FindStringSubmatch(str)
 
@@ -165,7 +173,14 @@ func parseDuration(str string) int64 {
 	minutes := parseInt64(matches[5])
 	seconds := parseInt64(matches[6])
 
-	return (years*24*365*60*60 + months*30*24*60*60 + days*24*60*60 + hours*60*60 + minutes*60 + seconds)
+	videoDuration := years*24*365*60*60 + months*30*24*60*60 + days*24*60*60 + hours*60*60 + minutes*60 + seconds
+
+	// if the video is longer that a day (stream), then don't return a value
+	if days > 0 {
+		return int64(0), 1
+	}
+
+	return videoDuration, 0
 }
 
 func parseInt64(value string) int64 {
@@ -180,13 +195,18 @@ func parseInt64(value string) int64 {
 }
 
 // updates the total time of each video
-func updateDurationSample(durations Data) int64 {
+func updateDurationSample(durations Data) (int64, int) {
 	var totalDuration int64 = 0
+	var outOfRange int = 0
 
 	for _, duration := range durations.Items {
-		totalDuration += parseDuration(duration.ContentDetails.Duration)
+		computedDuration, comuptedOutOfRange := parseDuration(duration.ContentDetails.Duration)
+
+		totalDuration += computedDuration
+		outOfRange += comuptedOutOfRange
 	}
-	return totalDuration
+
+	return totalDuration, outOfRange
 }
 
 // computes the total duration of the videos, with the estimation of the sample
@@ -212,14 +232,12 @@ func main() {
 		file, err := c.FormFile("file")
 
 		if err != nil {
-			fmt.Println("Error from first check")
 			c.String(http.StatusBadRequest, fmt.Sprintf("get form err %s", err.Error()))
 			return
 		}
 
 		filename := filepath.Base(file.Filename)
 		if err := c.SaveUploadedFile(file, filename); err != nil {
-			fmt.Println("Error from second check")
 			c.String(http.StatusBadRequest, fmt.Sprintf("uploaded file err: %s", err.Error()))
 			return
 		}
@@ -271,6 +289,13 @@ func main() {
 
 		urlsAPI := getUrlsAPI(ids)
 
+		// if didn't find any video id, send an error to frontend, stop the program
+		if len(urlsAPI) == 0 {
+			fmt.Println("Error with file, check that it is your watched history and not searched history")
+			c.String(http.StatusBadRequest, fmt.Sprintf("Error with file, check that it is your watched history and not searched history"))
+			return
+		}
+
 		// any missing links in the sampling ?
 		missingLinksSample := sampleSize - len(ids)
 
@@ -279,7 +304,9 @@ func main() {
 		var listData Data
 		var totalDurationSample int64 = 0
 		var totalDuration int64 = 0
+		var outOfRange int = 0
 
+		// initialize multi-threading
 		var wg sync.WaitGroup
 		wg.Add(len(urlsAPI))
 
@@ -297,15 +324,20 @@ func main() {
 				data, _ := ioutil.ReadAll(resp.Body)
 				err = json.Unmarshal(data, &listData)
 
-				// get feedback on the request
-				fmt.Println("request :", i)
-
 				if err != nil {
 					fmt.Println("error :", err)
 					panic(err.Error())
 				}
 
-				totalDurationSample += updateDurationSample(listData)
+				fmt.Println(listData)
+
+				comuptedDurationSample, computedOutOfRange := updateDurationSample(listData)
+
+				outOfRange += computedOutOfRange
+				totalDurationSample += comuptedDurationSample
+
+				fmt.Println("duration of sample is : ", totalDurationSample)
+				fmt.Println("number of videos out of range : ", outOfRange)
 
 			}(i, url)
 		}
@@ -313,10 +345,13 @@ func main() {
 		wg.Wait()
 
 		// compute the total duration for all the videos from the total given by the sample
-		totalDuration = getTotalDuration(totalDurationSample, sampleSize, population, missingLinksSample)
+		// adding the missingLinks with the outOfRange length that returned a duration of 0
+		totalDuration = getTotalDuration(totalDurationSample, sampleSize, population, missingLinksSample+outOfRange)
 
-		message := RequestInfo{population, sampleSize, yearValues, missingLinks, missingLinksSample, totalDuration}
+		avgDuration := float64(totalDuration / int64(population))
+		message := RequestInfo{population, sampleSize, yearValues, missingLinks, missingLinksSample + outOfRange, totalDuration, totalDurationSample, avgDuration}
 
+		fmt.Println("total duration is :", totalDuration)
 		c.JSON(200, message)
 
 		// don't forget to close the file
