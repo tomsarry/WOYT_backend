@@ -20,6 +20,15 @@ func init() {
 	rand.Seed(time.Now().UTC().UnixNano())
 }
 
+func inSlice(slc []models.YearInfo, year int) (bool, int) {
+	for i := 0; i < len(slc); i++ {
+		if slc[i].Year == year {
+			return true, i
+		}
+	}
+	return false, -1
+}
+
 // UploadHandler handles the processing and the response of the user request
 func UploadHandler(c *gin.Context) {
 
@@ -59,24 +68,21 @@ func UploadHandler(c *gin.Context) {
 		fmt.Println(err)
 	}
 
-	sampleSize := utils.ComputeSampleSize(len(videos))
+	sampleSize := utils.GetSampleSize(len(videos))
 	population := len(videos)
 
-	yearValues := make(map[int]int)
+	var yearValues []models.YearInfo
 
 	for i := 0; i < population; i++ {
 		// get when the video has been watched (year only)
 		yearWatched := videos[i].Time.Year()
 
-		_, ok := yearValues[yearWatched]
-
-		// check to see if the map already has values for this year
-		if !ok {
-			yearValues[yearWatched] = 1
+		found, index := inSlice(yearValues, yearWatched)
+		if found {
+			yearValues[index].Value++
 		} else {
-			yearValues[yearWatched]++
+			yearValues = append(yearValues, models.YearInfo{Year: yearWatched, Value: 1})
 		}
-
 	}
 
 	ids, missingLinks := utils.GetIDSample(videos)
@@ -142,7 +148,7 @@ func UploadHandler(c *gin.Context) {
 
 	// divide the respones in two structs
 	basicInfo := models.RequestBasicInfo{Population: population, SampleSize: sampleSize, MissingLinks: missingLinks, MissingLinksSample: missingLinksSample + outOfRange}
-	advancedInfo := models.RequestAdvancedInfo{YearInfo: yearValues, TotalDurationSeconds: totalDuration, TotalDurationSample: totalDurationSample, AvgDuration: avgDuration}
+	advancedInfo := models.RequestAdvancedInfo{YearInfos: yearValues, TotalDurationSeconds: totalDuration, TotalDurationSample: totalDurationSample, AvgDuration: avgDuration}
 
 	// creating a struct holding the response
 	res := models.Response{RequestBasicInfo: basicInfo, RequestAdvancedInfo: advancedInfo}

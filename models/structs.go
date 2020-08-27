@@ -33,10 +33,16 @@ type RequestBasicInfo struct {
 
 // RequestAdvancedInfo stores the processed information about the query
 type RequestAdvancedInfo struct {
-	YearInfo             map[int]int
+	YearInfos            []YearInfo
 	TotalDurationSeconds int64
 	TotalDurationSample  int64
 	AvgDuration          float64
+}
+
+// YearInfo stores the number of videos seen each year
+type YearInfo struct {
+	Year  int
+	Value int
 }
 
 // Response stores the response that will receive the frontend
