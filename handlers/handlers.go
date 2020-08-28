@@ -85,6 +85,10 @@ func UploadHandler(c *gin.Context) {
 		}
 	}
 
+	for i, j := 0, len(yearValues)-1; i < j; i, j = i+1, j-1 {
+		yearValues[i], yearValues[j] = yearValues[j], yearValues[i]
+	}
+
 	ids, missingLinks := utils.GetIDSample(videos)
 
 	urlsAPI := utils.GetUrlsAPI(ids)
