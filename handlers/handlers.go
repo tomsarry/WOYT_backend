@@ -85,6 +85,7 @@ func UploadHandler(c *gin.Context) {
 		}
 	}
 
+	// invert the array
 	for i, j := 0, len(yearValues)-1; i < j; i, j = i+1, j-1 {
 		yearValues[i], yearValues[j] = yearValues[j], yearValues[i]
 	}
