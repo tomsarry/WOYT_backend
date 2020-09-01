@@ -1,0 +1,15 @@
+version: "3.1"
+services:
+  backend:
+    container_name: woyt_backend
+    image: tomsarry/woyt_backend
+    environment:
+      - WEBSITE=http://localhost:1337
+      - API_KEY=
+    ports:
+      - 8080:8080
+  frontend:
+    container_name: woyt_front
+    image: tomsarry/woyt_front
+    ports:
+      - 1337:80

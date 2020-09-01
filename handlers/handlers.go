@@ -50,13 +50,14 @@ func UploadHandler(c *gin.Context) {
 
 	// handling any errors
 	if err != nil {
-		fmt.Println(err)
+		fmt.Println("error 1 : ", err)
+		panic(err.Error())
 	}
 
 	byteValue, err := ioutil.ReadAll(jsonFile)
 
 	if err != nil {
-		fmt.Println(err)
+		fmt.Println("error 2 : ", err)
 	}
 
 	// initialize the array of videos
@@ -65,7 +66,7 @@ func UploadHandler(c *gin.Context) {
 	err = json.Unmarshal(byteValue, &videos)
 
 	if err != nil {
-		fmt.Println(err)
+		fmt.Println("error 3 : ", err)
 	}
 
 	sampleSize := utils.GetSampleSize(len(videos))

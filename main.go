@@ -21,7 +21,7 @@ func main() {
 	r.MaxMultipartMemory = 8 << 20
 	r.Static("/", "./public")
 	r.Use(cors.New(cors.Config{
-		AllowOrigins: []string{os.Getenv("WEBSITE")},
+		AllowOrigins: []string{os.Getenv("WEBSITE"), "http://localhost:3000"},
 		AllowMethods: []string{"GET", "PUT", "POST"},
 	}))
 
