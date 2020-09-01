@@ -6,8 +6,6 @@ import (
 	"io/ioutil"
 	"math/rand"
 	"net/http"
-	"os"
-	"path/filepath"
 	"sync"
 	"time"
 
@@ -32,41 +30,35 @@ func inSlice(slc []models.YearInfo, year int) (bool, int) {
 // UploadHandler handles the processing and the response of the user request
 func UploadHandler(c *gin.Context) {
 
-	file, err := c.FormFile("file")
+	fileInput, err := c.FormFile("file")
 
 	if err != nil {
 		c.String(http.StatusBadRequest, fmt.Sprintf("get form err %s", err.Error()))
 		return
 	}
 
-	filename := filepath.Base(file.Filename)
-	if err := c.SaveUploadedFile(file, filename); err != nil {
-		c.String(http.StatusBadRequest, fmt.Sprintf("uploaded file err: %s", err.Error()))
-		return
-	}
+	file, err := fileInput.Open()
 
-	// opening the file received as input
-	jsonFile, err := os.Open(filename)
-
-	// handling any errors
 	if err != nil {
-		fmt.Println("error 1 : ", err)
 		panic(err.Error())
 	}
 
-	byteValue, err := ioutil.ReadAll(jsonFile)
+	bytes, err := ioutil.ReadAll(file)
+
+	// don't forget to close the file
+	defer file.Close()
 
 	if err != nil {
-		fmt.Println("error 2 : ", err)
+		panic(err.Error())
 	}
-
 	// initialize the array of videos
 	var videos []models.Video
 
-	err = json.Unmarshal(byteValue, &videos)
+	err = json.Unmarshal(bytes, &videos)
 
 	if err != nil {
 		fmt.Println("error 3 : ", err)
+		panic(err.Error())
 	}
 
 	sampleSize := utils.GetSampleSize(len(videos))
@@ -161,8 +153,5 @@ func UploadHandler(c *gin.Context) {
 
 	fmt.Println("total duration is :", totalDuration)
 	c.JSON(200, res)
-
-	// don't forget to close the file
-	defer jsonFile.Close()
 
 }
